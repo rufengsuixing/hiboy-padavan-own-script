@@ -1,0 +1,130 @@
+v2ray 因为open files 不足造成50%cpu，并且日志疯狂报错，发现openfile 为1000
+解决方案
+在路由器启动后执行前部分中添加
+ulimit -n 65535
+或者修改v2ray启动脚本
+
+修改了ss启动脚本，占用了多线程启动功能使v2ray使用ss的各种设定启动（用ipt，效率高）
+找到在ss启动脚本中同名函数替换,v2配置文件自己改
+start_ss_redir_threads()
+{
+# 多线程启动
+if [ "$ss_threads" != 0 ] ; then
+logger -t "【SS-V2ray】" "启动多线程ss-local，使用v2ray随机轮询负载，占用端口1090-1093，10901-10904，109011-10914"
+mkdir -p /tmp/cpu4
+v2ray_cpu4_pb="/tmp/cpu4/ss-redir_v2ray.pb"
+v2ray_cpu4_json="/tmp/cpu4/ss-redir_v2ray.json"
+v2ctl_path="$(cd "$(dirname "$v2ray_path")"; pwd)/v2ctl"
+if [ ! -s "$v2ctl_path" ] ; then
+        wgetcurl.sh $v2ctl_path "$hiboyfile/v2ctl" "$hiboyfile2/v2ctl"
+        chmod 755 "$v2ctl_path"
+fi
+if [[ "$($v2ctl_path -h 2>&1 | wc -l)" -lt 2 ]] ; then
+        [ -f "$v2ctl_path" ] && rm -f "$v2ctl_path"
+        logger -t "【SS】" "找不到 $v2ctl_path ，多线程启动失败"
+        return
+fi
+if [ ! -s "$v2ray_path" ] ; then
+        wgetcurl.sh "$v2ray_path" "$hiboyfile/v2ray" "$hiboyfile2/v2ray"
+        chmod 755 "$v2ray_path"
+fi
+if [[ "$($v2ray_path -h 2>&1 | wc -l)" -lt 2 ]] ; then
+        [ -f "$v2ray_path" ] && rm -f "$v2ray_path"
+        logger -t "【SS】" "找不到 $v2ray_path ，多线程启动失败"
+        return
+fi
+cat > $v2ray_cpu4_json <<-END
+{
+  "log": {
+    "access": "/tmp/vloga.txt",
+    "error": "/tmp/vlogr.txt",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": 1090,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "tcp,udp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "vmess",
+      "settings": {
+        "vnext": [
+          {
+            "address": "【你自己服务器ip】",
+            "port": port,
+            "users": [
+              {
+                "id": "what",
+                "alterId": 64,
+                "email": "t@t.tt",
+                "security": "aes-128-gcm"
+              }
+            ]
+          }
+        ],
+        "servers": null,
+        "response": null
+      },
+      "streamSettings": {
+        "network": "kcp",
+        "security": "",
+        "tlsSettings": null,
+        "tcpSettings": null,
+        "kcpSettings": {
+          "mtu": 1350,
+          "tti": 50,
+          "uplinkCapacity": 12,
+          "downlinkCapacity": 100,
+          "congestion": false,
+          "readBufferSize": 2,
+          "writeBufferSize": 2,
+          "header": {
+            "type": "wechat-video",
+            "request": null,
+            "response": null
+          }
+        },
+        "wsSettings": null,
+        "httpSettings": null
+      },
+      "mux": {
+        "enabled": true
+      }
+    }
+  ],
+  "dns": null
+}
+
+
+END
+chmod 666 $v2ray_cpu4_json
+logger -t "【SS】" "检测到【$(cat /proc/cpuinfo | grep 'processor' | wc -l)】核CPU：使用 $threads 线程启动"
+[ "$ss_udp_enable" == 0 ] && killall_ss_redir
+cd /tmp/cpu4
+rm -f /tmp/cpu4/ss-redir /tmp/cpu4/v2ctl
+ln -sf "$v2ray_path" /tmp/cpu4/ss-redir
+ln -sf "$v2ctl_path" /tmp/cpu4/v2ctl
+kill_ps /tmp/cpu4/ss-redir
+cmd_name="ss-v2ray"
+eval "/tmp/cpu4/ss-redir -format json -config $v2ray_cpu4_json $cmd_log" &
+rm -f /tmp/cpu4/ss-local_
+ln -sf /usr/sbin/ss-local /tmp/cpu4/ss-local_
+killall ss-local_
+
+logger -t "【SS】" "多线程启动完成！"
+
+fi
+}
+
+还有SS_keep()的部分判断sslocal_代码需要修改

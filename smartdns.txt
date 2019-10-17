@@ -1,0 +1,9 @@
+smartdns安装方法（软件未开源）
+下载 https://github.com/pymumu/smartd ... 6-0014.mipselsf.ipk
+/opt/etc/opkg.conf 加入行 arch mipselsf 170
+opkg install smartdns.1.2019.01.26-0014.mipselsf.ipk //手动找最新的
+修改/opt/etc/smartdns/smartdns.conf 进行配置，如果替代dnsmasq的ipset和host，需要使用dm2smd.sh
+如果需要watchdog的话，防止进程炸掉
+替换Sh19_china-dns.sh这行eval "$china-dns_path -p $china-dns_port -s $china-dns_dnss -l /opt/app/china-dns/china-dns_iplist.txt -c /etc/storage/china_ip_list.txt $usage $cmd_log" &
+为/opt/usr/sbin/smartdns -c /opt/etc/smartdns/smartdns.conf
+使用china-dns页面进行监听设置端口要和配置文件一样
